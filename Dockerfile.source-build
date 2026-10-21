@@ -1,0 +1,15 @@
+# Source build for deployments that run this fork before upstream releases its fixes. Compiles the jar
+# from this checkout and runs the full Maven verification (unit tests and ktlint), then replaces only the
+# jar in the pinned published image, so scripts, rootfs, Java runtime and entrypoint stay as released.
+# Both bases are pinned by tag and digest; bump them together with the published image they mirror.
+FROM maven:3.9.11-eclipse-temurin-17@sha256:e4a7ace3dc0d645ed97f8d9ad0b0d3f0b14fa8d150138f27f116d7105a639b82 AS build
+WORKDIR /src
+COPY pom.xml .editorconfig ./
+RUN mvn -B -q dependency:go-offline
+COPY src ./src
+RUN mvn -B verify \
+ && test -s target/jitsi-multitrack-recorder-0.1-SNAPSHOT-jar-with-dependencies.jar
+
+FROM jitsi/jitsi-multitrack-recorder@sha256:92ed82c7e5a4c55b79af60295e067fd1765c40ad4042c5035080d38ea61ce404
+LABEL org.opencontainers.image.source="https://github.com/jmdurant/jitsi-multitrack-recorder"
+COPY --from=build /src/target/jitsi-multitrack-recorder-0.1-SNAPSHOT-jar-with-dependencies.jar /jmr/
