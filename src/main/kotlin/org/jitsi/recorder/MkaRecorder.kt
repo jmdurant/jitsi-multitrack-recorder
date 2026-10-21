@@ -48,7 +48,21 @@ class MkaRecorder(directory: File, parentLogger: Logger = LoggerImpl("MkaRecorde
      */
     private val tracks = mutableMapOf<String, MatroskaFileTrack>()
 
+    internal fun checkTrackAllocation(name: String, endpointId: String? = null) {
+        // Check the cumulative writer budget, not just the latest-name map.
+        // A gap reset creates another physical track even when its name repeats.
+        require(Config.maxTracks > 0 && trackCount <= Config.maxTracks) { "Recording track limit reached" }
+        val metadataLimit = Config.maxTrackMetadataBytes
+        require(metadataLimit > 0 && name.toByteArray(Charsets.UTF_8).size <= metadataLimit) {
+            "Track name exceeds metadata limit"
+        }
+        require(endpointId == null || endpointId.toByteArray(Charsets.UTF_8).size <= metadataLimit) {
+            "Endpoint identifier exceeds metadata limit"
+        }
+    }
+
     fun startTrack(name: String, endpointId: String? = null) {
+        checkTrackAllocation(name, endpointId)
         logger.info("Starting new track $name, endpointId=$endpointId, trackNo=$trackCount")
         val track = MatroskaFileTrack().apply {
             trackNo = trackCount++

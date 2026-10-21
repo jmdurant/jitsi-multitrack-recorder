@@ -131,6 +131,12 @@ private class TrackRecorder(
     val endpointId: String?,
     parentLogger: Logger
 ) {
+    // Child loggers retain weak-reference bookkeeping in their parent context.
+    // Reject before even constructing that ancillary per-track state.
+    init {
+        mkaRecorder.checkTrackAllocation(trackName, endpointId)
+    }
+
     private val logger: Logger = parentLogger.createChildLogger(this.javaClass.name).apply {
         addContext("track", trackName)
     }

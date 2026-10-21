@@ -25,11 +25,14 @@ import org.jitsi.mediajson.SessionEndEvent
 import org.jitsi.mediajson.TranscriptionResultEvent
 import org.jitsi.utils.logging2.createLogger
 import java.io.File
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.Path
 import org.jitsi.recorder.RecorderMetrics.Companion.instance as metrics
 
 class RecordingSession(private val meetingId: String) {
     private val logger = createLogger().apply { addContext("meetingId", meetingId) }
-    private val directory = selectDirectory(meetingId)
+    private val directory = selectRecordingDirectory(Path.of(Config.recordingDirectory), meetingId)
 
     init {
         metrics.sessionsStarted.inc()
@@ -114,25 +117,20 @@ class RecordingSession(private val meetingId: String) {
             }
         }
     }
+}
 
-    private fun selectDirectory(meetingId: String): File {
-        var suffix = ""
-        var counter = 1
-        var file: File
-
-        do {
-            val path = "${Config.recordingDirectory}/$meetingId$suffix"
-            file = File(path)
-
-            if (!file.exists()) {
-                file.mkdirs()
-                return file
-            }
-
-            suffix = "-$counter"
-            counter++
-        } while (counter < 100)
-
-        throw RuntimeException("Failed to create directory for meetingId $meetingId after 100 attempts")
+/** Claim one output directory before either recorder format can open its files. */
+internal fun selectRecordingDirectory(root: Path, meetingId: String): File {
+    require(meetingId.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid meetingId" }
+    Files.createDirectories(root)
+    repeat(100) { attempt ->
+        val suffix = if (attempt == 0) "" else "-$attempt"
+        val candidate = root.resolve("$meetingId$suffix")
+        try {
+            return Files.createDirectory(candidate).toFile()
+        } catch (_: FileAlreadyExistsException) {
+            // Files and symlinks are collisions too. Never claim their contents.
+        }
     }
+    throw IllegalStateException("Failed to create recording directory after 100 attempts")
 }

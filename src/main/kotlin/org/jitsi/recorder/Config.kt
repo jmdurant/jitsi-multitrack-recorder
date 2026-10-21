@@ -54,6 +54,14 @@ class Config {
             "$BASE.recording.event-channel-capacity".from(configSource)
         }
 
+        val maxTracks: Int by config {
+            "$BASE.recording.max-tracks".from(configSource)
+        }
+
+        val maxTrackMetadataBytes: Int by config {
+            "$BASE.recording.max-track-metadata-bytes".from(configSource)
+        }
+
         val finalizeScript: String? by optionalconfig {
             "$BASE.finalize-script".from(configSource)
         }
