@@ -13,3 +13,16 @@ RUN mvn -B verify \
 FROM jitsi/jitsi-multitrack-recorder:latest
 LABEL org.opencontainers.image.source="https://github.com/jmdurant/jitsi-multitrack-recorder"
 COPY --from=build /src/target/jitsi-multitrack-recorder-0.1-SNAPSHOT-jar-with-dependencies.jar /jmr/
+# emSign distrust (CVE-2026-111943: eMudhra/emSign intermediate CA keys compromised). The published image
+# still trusts emSign in the system bundle and in Java's cacerts; update-ca-certificates regenerates both
+# (the jks-keystore hook). The build fails if either still holds an emSign root, or outbound TLS breaks.
+RUN set -e; \
+    sed -i -E 's|^(mozilla/emSign[^[:space:]]*\.crt)$|!\1|' /etc/ca-certificates.conf; \
+    update-ca-certificates >/dev/null 2>&1; \
+    for f in /usr/share/ca-certificates/mozilla/emSign*.crt; do \
+      [ -f "$f" ] || continue; \
+      if grep -q -F -x "$(sed -n 2p "$f")" /etc/ssl/certs/ca-certificates.crt; then echo "emSign root still trusted: $f" >&2; exit 1; fi; \
+    done; \
+    if keytool -list -cacerts -storepass changeit 2>/dev/null | grep -qi emsign; then echo 'emSign root still in Java cacerts' >&2; exit 1; fi; \
+    keytool -list -cacerts -storepass changeit 2>/dev/null | grep -q trustedCertEntry || { echo 'Java cacerts is empty' >&2; exit 1; }; \
+    curl -fsS -o /dev/null --max-time 20 https://repo1.maven.org/maven2/ || { echo 'outbound TLS failed after the distrust step' >&2; exit 1; }
