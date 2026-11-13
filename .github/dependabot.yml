@@ -1,0 +1,12 @@
+# Update PRs for the workflow action hashes and the repo's package manifests (owner rule: no pins;
+# actions keep a full commit hash with a "# vX.Y.Z" comment, which Dependabot moves).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
